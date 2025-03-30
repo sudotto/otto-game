@@ -46,6 +46,10 @@ bool get_game_events(Game* game){
 	return false;
 }
 
+void render_game_cursor(Game* game, int w, int h){
+	render_img(game->rend, &game->cursor, game->mouse_x, game->mouse_y, w, h);
+}
+
 void clear_game(Game* game, Uint8 r, Uint8 g, Uint8 b){
 	SDL_SetRenderDrawColor(game->rend, r, g, b, 1);
 	SDL_RenderClear(game->rend);
