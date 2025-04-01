@@ -5,8 +5,7 @@
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3_image/SDL_image.h>
 
-#include "ui.h"
-#include "game.h"
+#include "otto-game.h"
 
 int main(int argc, char* argv[]){
 	Game game = new_game("Otto Game Template", 900, 600);
