@@ -40,7 +40,7 @@ int main(int argc, char* argv[]){
 		}
 		for(int y = -1; y < 61; y++){
 			for(int x = -1; x < 91; x++){
-				render_img(game.rend, &game.icon, (x * 64) + offset_x, (y * 64) + offset_y, 64, 64, false);
+				render_img(game.rend, &game.icon, (x * 64) + offset_x, (y * 64) + offset_y, 64, 64);
 			}
 		}
 

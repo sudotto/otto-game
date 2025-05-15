@@ -44,52 +44,55 @@ Camera camera = {0, 0, 1};
 // IMAGE
 ///////////////////
 
-Img new_img(SDL_Renderer* rend, char* file){
+Img new_img(SDL_Renderer* rend, char* file, bool camera_affected){
 	Img img;
 	img.surf = IMG_Load(file);
 	img.tex = SDL_CreateTextureFromSurface(rend, img.surf);
 	img.cropped = false;
+	img.flipped = false;
+	img.camera_affected = camera_affected;
+	img.angle = 0;
 	return img;
 }
 
-Img new_cropped_img(SDL_Renderer* rend, char* file, int x, int y, int w, int h){
-	Img img;
-	img.surf = IMG_Load(file);
-	img.tex = SDL_CreateTextureFromSurface(rend, img.surf);
-	img.crop.x = x;
-	img.crop.y = y;
-	img.crop.w = w;
-	img.crop.h = h;
-	img.cropped = true;
-	return img;
+void crop_img(Img* img, int x, int y, int w, int h){
+	img->crop.x = x;
+	img->crop.y = y;
+	img->crop.w = w;
+	img->crop.h = h;
+	img->cropped = true;
 }
 
-Img new_recolored_img(SDL_Renderer* rend, char* file, SDL_Color target, SDL_Color replace){
-	Img img;
-	img.surf = IMG_Load(file);
-	const SDL_PixelFormatDetails *format_details = SDL_GetPixelFormatDetails(img.surf->format);
+void flip_img(Img* img, bool flipped){
+	img->flipped = flipped;
+}
 
+void rotate_img(Img* img, int angle){
+	img->angle = angle;
+}
+
+void recolor_img(Img* img, SDL_Renderer* rend, SDL_Color target, SDL_Color replace){
+	const SDL_PixelFormatDetails *format_details = SDL_GetPixelFormatDetails(img->surf->format);
 	Uint32 replaceRGB = SDL_MapRGB(format_details, NULL, replace.r, replace.g, replace.b);
 	Uint32 targetRGB = SDL_MapRGB(format_details, NULL, target.r, target.g, target.b);
-	Uint32 *pixels = img.surf->pixels;
-	int total = img.surf->w * img.surf->h;
+	Uint32 *pixels = img->surf->pixels;
+	int total = img->surf->w * img->surf->h;
 	for(int i = 0; i < total; i++){
 		if(pixels[i] == targetRGB){
 			pixels[i] = replaceRGB;
 		}
 	}
-	img.cropped = false;
-	img.tex = SDL_CreateTextureFromSurface(rend, img.surf);
-	return img;
+	img->cropped = false;
+	img->tex = SDL_CreateTextureFromSurface(rend, img->surf);
 }
 
-void render_img(SDL_Renderer* rend, Img *img, int x, int y, int w, int h, bool camera_affected){
+void render_img(SDL_Renderer* rend, Img *img, int x, int y, int w, int h){
 	SDL_FRect dest;
 	dest.x = x;
 	dest.y = y;
 	dest.w = w;
 	dest.h = h;
-	if(camera_affected){
+	if(img->camera_affected){
 		dest.x -= camera.x;
 		dest.y -= camera.y;
 		dest.x *= camera.scale;
@@ -101,33 +104,9 @@ void render_img(SDL_Renderer* rend, Img *img, int x, int y, int w, int h, bool c
 		return;
 	}
 	if(img->cropped){
-		SDL_RenderTexture(rend, img->tex, &img->crop, &dest);
+		SDL_RenderTextureRotated(rend, img->tex, &img->crop, &dest, img->angle, NULL, img->flipped);
 	} else {
-		SDL_RenderTexture(rend, img->tex, NULL, &dest);
-	}
-}
-
-void render_img_rotated(SDL_Renderer* rend, Img *img, int x, int y, int w, int h, int angle, bool flipped, bool camera_affected){
-	SDL_FRect dest;
-	dest.x = x;
-	dest.y = y;
-	dest.w = w;
-	dest.h = h;
-	if(camera_affected){
-		dest.x -= camera.x;
-		dest.y -= camera.y;
-		dest.x *= camera.scale;
-		dest.y *= camera.scale;
-		dest.w *= camera.scale;
-		dest.h *= camera.scale;
-	}
-	if(x < 0 && y < 0 && x > GAME_W && y > GAME_H){
-		return;
-	}
-	if(img->cropped){
-		SDL_RenderTextureRotated(rend, img->tex, &img->crop, &dest, angle, NULL, flipped);
-	} else {
-		SDL_RenderTextureRotated(rend, img->tex, NULL, &dest, angle, NULL, flipped);
+		SDL_RenderTextureRotated(rend, img->tex, NULL, &dest, img->angle, NULL, img->flipped);
 	}
 }
 
@@ -135,25 +114,26 @@ void render_img_rotated(SDL_Renderer* rend, Img *img, int x, int y, int w, int h
 // ANIMATION
 ///////////////////
 
-Anim new_anim(SDL_Renderer* rend, char* filename, int framecount, int row, int w, int h){
+Anim new_anim(SDL_Renderer* rend, char* filename, int framecount, int row, int w, int h, bool camera_affected){
 	Anim anim;
 	anim.frames = malloc(sizeof(Img) * framecount);
 	anim.frame = 0;
 	anim.framecount = framecount;
 
 	for(int x = 0; x < framecount; x++){
-		anim.frames[x] = new_cropped_img(rend, filename, x * w, row * h, w, h);
+		anim.frames[x] = new_img(rend, filename, camera_affected);
+		crop_img(&anim.frames[x], x * w, row * h, w, h);
 	}
 	return anim;
 }
 
-void render_anim(SDL_Renderer* rend, Anim* anim, int x, int y, int w, int h, float framerate, bool camera_affected){
+void render_anim(SDL_Renderer* rend, Anim* anim, int x, int y, int w, int h, float framerate){
 	anim->frame += framerate;
 	if(anim->frame >= anim->framecount){
 		anim->frame = 0;
 	}
 	int frame = (int)floor(anim->frame);
-	render_img(rend, &anim->frames[(int)floor(anim->frame)], x, y, w, h, camera_affected);
+	render_img(rend, &anim->frames[(int)floor(anim->frame)], x, y, w, h);
 }
 
 void del_anim(Anim* anim){
@@ -171,8 +151,8 @@ Game new_game(char* title, int w, int h){
 	game.win = SDL_CreateWindow(title, w, h, 0);
 	game.rend = SDL_CreateRenderer(game.win, NULL);
 
-	game.icon = new_img(game.rend, "assets/icon.png");
-	game.cursor = new_img(game.rend, "assets/cursor.png");
+	game.icon = new_img(game.rend, "assets/icon.png", false);
+	game.cursor = new_img(game.rend, "assets/cursor.png", false);
 	SDL_SetWindowIcon(game.win, game.icon.surf);
 
 	game.keystates = SDL_GetKeyboardState(NULL);
@@ -201,7 +181,7 @@ bool get_game_events(Game* game){
 }
 
 void render_game_cursor(Game* game, int w, int h){
-	render_img(game->rend, &game->cursor, game->mouse_x, game->mouse_y, w, h, false);
+	render_img(game->rend, &game->cursor, game->mouse_x, game->mouse_y, w, h);
 }
 
 void clear_game(Game* game, Uint8 r, Uint8 g, Uint8 b){
